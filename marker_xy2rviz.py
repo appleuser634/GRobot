@@ -1,6 +1,7 @@
 import pyrealsense2 as rs
 import numpy as np
 import cv2
+import time
 
 import rospy
 from visualization_msgs.msg import Marker
@@ -104,6 +105,10 @@ clipping_distance = clipping_distance_in_meters / depth_scale
 align_to = rs.stream.color
 align = rs.align(align_to)
 
+fps = 0
+count = 0
+start_time = time.time()
+
 try:
     while not rospy.is_shutdown():
         # Get frameset of color and depth
@@ -135,13 +140,12 @@ try:
         depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
         images = np.hstack((bg_removed, depth_colormap))
 
-
         corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(color_image, dictionary)
         if len(corners) > 0:
         # flatten the ArUco IDs list
             ids = ids.flatten()
             for (markerCorner, markerID) in zip(corners, ids):
-                
+
                 if markerID != 10:
                     continue
 
@@ -160,12 +164,22 @@ try:
                 cv2.circle(color_image, (cX, cY), 4, (0, 0, 255), -1)
                 #color_image = cv2.aruco.drawDetectedMarkers(color_image, corners, ids)
                 #print("CX:",cX,"CY:",cY)
-                
+
                 publish_marker_position(cX/10, cY/10)
                 break
 
-        
         #print("Shape:",color_image.shape[:2])
+
+        # FPS計測
+        count += 1
+        if time.time() - start_time > 3:
+            fps = int(count / 3)
+            start_time = time.time()
+            count = 0
+
+        # FPS描画
+        draw_text = "FPS:" + str(fps)
+        cv2.putText(color_image, draw_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2, cv2.LINE_AA)
 
         cv2.namedWindow('Align Example', cv2.WINDOW_NORMAL)
         cv2.imshow('Align Example', images)
